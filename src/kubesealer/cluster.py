@@ -4,7 +4,7 @@ from colorama import Fore
 from icecream import ic
 from kubernetes import client, config
 
-from kubeseal_auto.host import Host
+from kubesealer.host import Host
 
 
 class Cluster:

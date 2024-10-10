@@ -1,62 +1,46 @@
 <div align="center">
 
-# kubeseal-auto
+# kubesealer
 
-<b>kubeseal-auto</b> is an interactive wrapper for kubeseal binary used to encrypt secrets for [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets).
+<b>kubesealer</b> is an interactive wrapper for [kubeseal](https://github.com/bitnami-labs/sealed-secrets) binary used to edit SealedSecrets with your favorite $EDITOR as it were native Secrets. This makes it easier to create and edit SealedSecrets.
 
-![GitHub last commit (branch)](https://img.shields.io/github/last-commit/shini4i/kubeseal-auto/main?style=plastic)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/kubeseal-auto?style=plastic)
-![PyPI](https://img.shields.io/pypi/v/kubeseal-auto?style=plastic)
-![license](https://img.shields.io/github/license/shini4i/kubeseal-auto?style=plastic)
 
-<img src="https://raw.githubusercontent.com/shini4i/assets/main/src/kubeseal-auto/demo.gif" alt="Showcase" style="max-width: 100%;" width="620">
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/kubesealer?style=plastic)
+![PyPI](https://img.shields.io/pypi/v/kubesealer?style=plastic)
+
+# Credits
+
+This repo is a small edit to the original, the heavy lifting was done by: [https://github.com/shini4i/kubeseal-auto](https://github.com/shini4i/kubeseal-auto) .
+
 
 </div>
 
 ## Installation
+
 The recommended way to install this script is [pipx](https://github.com/pypa/pipx):
 
 ```bash
-pipx install kubeseal-auto
+pipx install kubesealer
 ```
 
 ## Usage
-By default, the script will check the version of sealed-secret controller and download the corresponding kubeseal binary to ~/bin directory.
 
-To run the script in fully interactive mode:
-```bash
-kubeseal-auto
+Running without commands will create a new secret
+
+```
+kubesealer
 ```
 
-Additionally, a "detached" mode is supported:
-```bash
-# Download sealed-secrets certificate for local signing
-kubeseal-auto --fetch
-# Generate SealedSecret with local certificate
-kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
-```
-> [!IMPORTANT]
-> In the detached mode `kubeseal-auto` will not download the `kubeseal` binary and will look for it in the system $PATH.
+<img src=".github/assets/kubesealer.gif" alt="Showcase" style="max-width: 100%;" width="620">
 
-To select kubeconfig context:
-```bash
-kubeseal-auto --select
+Editing an existing secret can be done as follows:
+
+```
+kubesealer foo.sealedsecret.yaml
 ```
 
-To append or change key values in the existing secret:
-```bash
-kubeseal-auto --edit secret-name.yaml
-```
-
-To reencrypt all secrets in a directory (not working in a detached mode):
-```bash
-kubeseal-auto --re-encrypt /path/to/directory
-```
-
-To back up the encryption and decryption keys (not working in a detached mode):
-```bash
-kubeseal-auto --backup
-```
+<img src=".github/assets/kubesealer_edit.gif" alt="Showcase" style="max-width: 100%;" width="620">
 
 ## Contributing
+
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

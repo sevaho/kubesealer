@@ -1,6 +1,8 @@
 import os
+from textwrap import dedent
 import subprocess
 from pathlib import Path
+from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 
 import click
@@ -10,7 +12,7 @@ from colorama import Fore
 from icecream import ic
 from yaml.composer import ComposerError
 
-from kubeseal_auto.cluster import Cluster
+from kubesealer.cluster import Cluster
 
 
 class Kubeseal:
@@ -63,35 +65,36 @@ class Kubeseal:
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
-    def create_generic_secret(self, secret_params: dict):
-        click.echo(
-            "===> Provide literal entry/entries one per line: "
-            f"[{Fore.CYAN}literal{Fore.RESET}] key=value "
-            f"[{Fore.CYAN}file{Fore.RESET}] filename"
-        )
+    def create_generic_secret(self):
 
-        secrets = questionary.text("Secret Entries one per line", multiline=True).unsafe_ask()
-        ic(secrets)
+        document = dedent(f"""
+            # Edit the following secret template
+            # Do not forget to adjust the namespace and name
+                          
+            apiVersion: v1
+            data:
+              foo: bar
+            kind: Secret
+            metadata:
+              name: default
+              namespace: default
+        """)
+
+        output = click.edit(document, extension=".yaml")
+
+        document = yaml.safe_load(output)
+        namespace = document["metadata"]["namespace"]
+        secret_name = document["metadata"]["name"]
+
+        for key in document["data"]:
+            document["data"][key] = b64encode(document["data"][key].encode()).decode()
+
+        with open(self.temp_file.name, "w") as stream:
+            yaml.safe_dump(document, stream=stream)
 
         click.echo("===> Generating a temporary generic secret yaml file")
 
-        secret_entries = ""
-
-        for secret in secrets.splitlines():
-            if "=" in secret:
-                secret = secret.replace('"', '\\"') # this line is needed to preserve quotes in the secret value
-                secret_entries = f"{secret_entries} --from-literal=\"{secret}\""
-            else:
-                secret_entries = f"{secret_entries} --from-file={secret}"
-
-        command = (
-            f"kubectl create secret generic {secret_params['name']} {secret_entries} "
-            f"--namespace {secret_params['namespace']} --dry-run=client -o yaml "
-            f"> {self.temp_file.name}"
-        )
-        ic(command)
-
-        subprocess.call(command, shell=True)
+        return secret_name
 
     def create_tls_secret(self, secret_params: dict):
         click.echo("===> Generating a temporary tls secret yaml file")
@@ -125,11 +128,12 @@ class Kubeseal:
 
     def seal(self, secret_name: str):
         click.echo("===> Sealing generated secret file")
+        secret_filename = f"{secret_name}.sealedsecrets.yaml"
         if self.detached_mode:
             command = (
                 f"{self.binary} --format=yaml "
                 f"--cert={self.certificate} < {self.temp_file.name} "
-                f"> {secret_name}.yaml"
+                f"> {secret_filename}"
             )
         else:
             command = (
@@ -137,11 +141,12 @@ class Kubeseal:
                 f"--context={self.current_context_name} "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name} "
-                f"> {secret_name}.yaml"
+                f"> {secret_filename}"
             )
         ic(command)
         subprocess.call(command, shell=True)
-        self.append_argo_annotation(filename=f"{secret_name}.yaml")
+        self.append_argo_annotation(filename=secret_filename)
+        click.echo("===> Created new secret: {secret_filename}")
         click.echo("===> Done")
 
     @staticmethod
@@ -155,6 +160,7 @@ class Kubeseal:
         except FileNotFoundError:
             click.echo("Provided file does not exists. Aborting.")
             exit(1)
+
 
     def merge(self, secret_name: str):
         click.echo(f"===> Updating {secret_name}")
@@ -230,6 +236,56 @@ class Kubeseal:
             subprocess.call(command, shell=True)
             os.remove(f"{secret}_tmp")
             self.append_argo_annotation(secret)
+
+    def decrypt_and_edit(self, file: str):
+        """
+        Decrypts the SealedSecret
+
+        Parameters:
+            file: the SealedSecret file
+        """
+
+        with NamedTemporaryFile() as f:
+            secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
+            command = (
+                f"kubectl get secret -n {self.controller_namespace} "
+                f"{secret} -o yaml > {f.name}"
+            )
+            ic(command)
+            subprocess.call(command, shell=True)
+
+            command = (
+                "kubeseal "
+                f"--context={self.current_context_name} "
+                f"--controller-namespace {self.controller_namespace} "
+                f"--controller-name {self.controller_name} "
+                f"< {file} --recovery-unseal --recovery-private-key {f.name} -oyaml"
+            )
+            ic(command)
+            output = subprocess.check_output(command, shell=True)
+
+            docs = [doc for doc in yaml.safe_load_all(output.decode()) if doc is not None]
+            if len(docs) > 1:
+                raise ComposerError("Only single document yaml files are supported")
+
+            document = docs[0]
+
+            for key in document["data"]:
+                document["data"][key] = b64decode(document["data"][key]).decode()
+
+            
+
+            output = click.edit(yaml.safe_dump(document), extension=".yaml")
+
+            # with open(self.temp_file.name, "r") as stream:
+            document = yaml.safe_load(output)
+
+            for key in document["data"]:
+                document["data"][key] = b64encode(document["data"][key].encode()).decode()
+
+            with open(self.temp_file.name, "w") as stream:
+                yaml.safe_dump(document, stream=stream)
+
 
     def backup(self):
         """

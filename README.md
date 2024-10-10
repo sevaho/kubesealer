@@ -25,7 +25,7 @@ pipx install kubesealer
 
 ## Usage
 
-Running without commands will create a new secret
+Running without commands will create a new secret with your $EDITOR
 
 ```
 kubesealer
@@ -33,7 +33,7 @@ kubesealer
 
 <img src=".github/assets/kubesealer.gif" alt="Showcase" style="max-width: 100%;" width="620">
 
-Editing an existing secret can be done as follows:
+Editing an existing secret with your $EDITOR can be done as follows:
 
 ```
 kubesealer foo.sealedsecret.yaml
@@ -43,4 +43,4 @@ kubesealer foo.sealedsecret.yaml
 
 ## Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change. If you want to adjust something on the underlying engine please open a Pull request at [https://github.com/shini4i/kubeseal-auto](https://github.com/shini4i/kubeseal-auto) .
